@@ -11,9 +11,9 @@ class RecordingViewModel: ObservableObject {
     @Published var audioLevel: CGFloat = 0.0
     @Published var errorMessage: String?
     
-    // Audio Size Estimate (approx 1 MB / min for AAC)
+    // Audio Size Estimate (approx 10 MB/min for uncompressed LPCM/CAF)
     var formattedAudioSize: String {
-        let mb = (elapsedTime / 60.0) * 1.0 
+        let mb = (elapsedTime / 60.0) * 10.0
         if mb < 0.1 { return "< 0.1 MB" }
         return String(format: "~%.1f MB", mb)
     }

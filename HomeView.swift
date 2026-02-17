@@ -3,6 +3,7 @@ import SwiftData
 
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var viewModel = HomeViewModel()
     @State private var showingRecording = false
     @State private var fabScale: CGFloat = 1.0
@@ -11,6 +12,105 @@ struct HomeView: View {
     @State private var showingDateFilterSheet = false
     
     var body: some View {
+        Group {
+            if horizontalSizeClass == .regular {
+                iPadLayout
+            } else {
+                iPhoneLayout
+            }
+        }
+        .onAppear {
+            viewModel.setModelContext(modelContext)
+        }
+    }
+    
+    // MARK: - iPad Split View Layout
+    private var iPadLayout: some View {
+        NavigationSplitView {
+            // Sidebar: lecture list
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        DesignSystem.Colors.homeGradientStart,
+                        DesignSystem.Colors.background
+                    ],
+                    startPoint: .top,
+                    endPoint: UnitPoint(x: 0.5, y: 1.1)
+                )
+                .ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    searchAndFilterBar
+                    
+                    if viewModel.filteredLectures.isEmpty {
+                        emptyState
+                    } else {
+                        List(viewModel.filteredLectures, id: \.id, selection: $selectedLecture) { lecture in
+                            LectureCard(lecture: lecture)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .tag(lecture)
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        withAnimation {
+                                            viewModel.deleteLecture(lecture)
+                                        }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                    }
+                }
+            }
+            .navigationTitle("Recallix")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink(destination: NotificationView()) {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(DesignSystem.Colors.label)
+                    }
+                    .accessibilityLabel("Notifications")
+                }
+                ToolbarItem(placement: .bottomBar) {
+                    Button(action: { showingRecording = true }) {
+                        Label("Record Lecture", systemImage: "mic.fill")
+                            .font(.headline)
+                    }
+                    .accessibilityLabel("Start Recording")
+                    .accessibilityHint("Tap to begin recording a new lecture")
+                }
+            }
+        } detail: {
+            if let lecture = selectedLecture {
+                NotesView(lecture: lecture)
+            } else {
+                ContentUnavailableView(
+                    "Select a Lecture",
+                    systemImage: "doc.text.magnifyingglass",
+                    description: Text("Choose a lecture from the sidebar to view its notes")
+                )
+            }
+        }
+        .fullScreenCover(isPresented: $showingRecording) {
+            RecordingView(onSave: { lecture in
+                selectedLecture = lecture
+            })
+            .environment(\.modelContext, modelContext)
+            .onDisappear {
+                viewModel.loadLectures()
+            }
+        }
+        .sheet(isPresented: $showingDateFilterSheet) {
+            dateFilterSheet
+        }
+    }
+    
+    // MARK: - iPhone Stack Layout
+    private var iPhoneLayout: some View {
         NavigationStack {
             ZStack {
                 // ... (Gradient remains same)
@@ -234,6 +334,96 @@ struct HomeView: View {
             .onAppear {
                 viewModel.setModelContext(modelContext)
             }
+        }
+    }
+    
+    // MARK: - Search and Filter Bar (shared by iPhone + iPad)
+    private var searchAndFilterBar: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(DesignSystem.Colors.secondaryLabel)
+                
+                TextField("Search lectures...", text: $viewModel.searchText)
+                    .font(DesignSystem.Typography.body)
+                
+                if !viewModel.searchText.isEmpty {
+                    Button(action: { viewModel.searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(DesignSystem.Colors.tertiaryLabel)
+                    }
+                }
+            }
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.vertical, DesignSystem.Spacing.sm + 2)
+            .background(DesignSystem.Colors.searchBarBackground)
+            .background(.ultraThinMaterial)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(DesignSystem.Colors.glassBorder, lineWidth: 0.5)
+            )
+            
+            // Filter Button
+            Menu {
+                Picker("Date Filter", selection: $viewModel.selectedDateFilter) {
+                    ForEach(HomeViewModel.DateFilter.allCases) { filter in
+                        Text(filter.rawValue).tag(filter)
+                    }
+                }
+                .onChange(of: viewModel.selectedDateFilter) { newValue in
+                    if newValue == .custom {
+                        showingDateFilterSheet = true
+                    }
+                }
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(DesignSystem.Colors.searchBarBackground)
+                        .background(
+                            Circle().fill(.ultraThinMaterial)
+                        )
+                        .frame(width: 44, height: 44)
+                        .overlay(
+                            Circle()
+                                .stroke(DesignSystem.Colors.glassBorder, lineWidth: 0.5)
+                        )
+                    
+                    Image(systemName: viewModel.selectedDateFilter == .allTime ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(viewModel.selectedDateFilter == .allTime ? DesignSystem.Colors.secondaryLabel : DesignSystem.Colors.primary)
+                }
+            }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.bottom, DesignSystem.Spacing.md)
+    }
+    
+    // MARK: - Date Filter Sheet (shared by iPhone + iPad)
+    private var dateFilterSheet: some View {
+        NavigationStack {
+            Form {
+                DatePicker("Start Date", selection: $viewModel.filterStartDate, displayedComponents: .date)
+                DatePicker("End Date", selection: $viewModel.filterEndDate, displayedComponents: .date)
+            }
+            .navigationTitle("Select Date Range")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        showingDateFilterSheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") {
+                        showingDateFilterSheet = false
+                        viewModel.selectedDateFilter = .custom
+                    }
+                }
+            }
+            .presentationDetents([.medium])
         }
     }
     

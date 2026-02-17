@@ -15,6 +15,7 @@ class SpeechService: ObservableObject, @unchecked Sendable {
     @Published var audioLevel: Float = 0.0
     @Published var errorMessage: String?
     
+
     // Audio properties — nonisolated(unsafe) so nonisolated methods can access them
     private nonisolated(unsafe) var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private nonisolated(unsafe) var recognitionTask: SFSpeechRecognitionTask?
@@ -128,13 +129,9 @@ class SpeechService: ObservableObject, @unchecked Sendable {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         
-        // On-device recognition is preferred for privacy/offline, but requires
-        // the speech model to be downloaded on-device. If it isn't available,
-        // recognition fails silently → empty transcript → save fails.
-        // Default to server-side for reliability; set to true for SSC demo
-        // on devices where the model is confirmed downloaded.
+        // Always use on-device recognition: fully offline, privacy-first
         if #available(iOS 13, *) {
-            request.requiresOnDeviceRecognition = false
+            request.requiresOnDeviceRecognition = true
             request.addsPunctuation = true
         }
         
