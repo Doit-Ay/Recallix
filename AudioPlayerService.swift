@@ -32,8 +32,11 @@ class AudioPlayerService: NSObject, ObservableObject, AVAudioPlayerDelegate {
         
         do {
             // Configure audio session for playback
-            try AVAudioSession.sharedInstance().setCategory(.playback)
-            try AVAudioSession.sharedInstance().setActive(true)
+            // IMPORTANT: Reset mode to .default — the recording session uses .measurement
+            // which routes audio to the earpiece at very low volume
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .default)
+            try session.setActive(true)
             
             audioPlayer = try AVAudioPlayer(contentsOf: fileURL)
             audioPlayer?.delegate = self

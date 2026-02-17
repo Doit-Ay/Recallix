@@ -94,6 +94,16 @@ class RecordingViewModel: ObservableObject {
         }
     }
     
+    /// Clean up all tasks — call on view dismiss to prevent memory leaks
+    func cleanup() {
+        cancelTasks()
+        if isRecording {
+            speechService.stopRecording()
+            isRecording = false
+        }
+        audioLevel = 0
+    }
+    
     /// Stop recording and save lecture
     func stopRecording(title: String? = nil, saveAudio: Bool = false) async -> Lecture? {
         speechService.stopRecording()
@@ -127,12 +137,16 @@ class RecordingViewModel: ObservableObject {
         
         // Handle Audio Saving
         if saveAudio, let tempURL = speechService.recordedAudioURL {
-            let filename = duplicateAudioToDocuments(from: tempURL)
-            lecture.audioFilename = filename
+            let savedFilename = duplicateAudioToDocuments(from: tempURL)
+            lecture.audioFilename = savedFilename
         } else {
             // Cleanup temp file if exists
             if let tempURL = speechService.recordedAudioURL {
-                 try? FileManager.default.removeItem(at: tempURL)
+                do {
+                    try FileManager.default.removeItem(at: tempURL)
+                } catch {
+                    print("Warning: Failed to remove temp audio file: \(error.localizedDescription)")
+                }
             }
         }
         
@@ -220,17 +234,10 @@ class RecordingViewModel: ObservableObject {
         let title = titleWords.joined(separator: " ")
         
         return title.isEmpty ? "Untitled Lecture" : title + "..."
-        return title.isEmpty ? "Untitled Lecture" : title + "..."
     }
     
     private func duplicateAudioToDocuments(from tempURL: URL) -> String? {
-        // 1. Generate permanent filename
-        let filename = UUID().uuidString + ".m4a" // We will save as m4a eventually, or caf for now
-        // NOTE: For MVP we are just moving the CAF. If we want M4A we need conversion.
-        // User asked for size. If we move CAF it is huge. 
-        // Let's assume we maintain CAF extension for now to avoid corruption, 
-        // but ideally we should convert. 
-        // Given complexity, let's just move the file and keep extension.
+        // Use the actual file extension from the temp file to avoid format mismatch
         let ext = tempURL.pathExtension
         let savedFilename = UUID().uuidString + "." + ext
         
@@ -242,13 +249,15 @@ class RecordingViewModel: ObservableObject {
                 try FileManager.default.removeItem(at: destURL)
             }
             try FileManager.default.copyItem(at: tempURL, to: destURL)
-            // We copy instead of move because SpeechService might still allow "resume" logically, 
-            // though stopRecording implies end. 
-            // Actually move is better for cleanup.
-            try? FileManager.default.removeItem(at: tempURL)
+            // Clean up temp file
+            do {
+                try FileManager.default.removeItem(at: tempURL)
+            } catch {
+                print("Warning: Failed to remove temp audio file: \(error.localizedDescription)")
+            }
             return savedFilename
         } catch {
-            print("Failed to save audio: \(error)")
+            print("Failed to save audio: \(error.localizedDescription)")
             return nil
         }
     }

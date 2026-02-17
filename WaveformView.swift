@@ -1,60 +1,74 @@
 import SwiftUI
 
-/// Animated waveform visualization for recording
+/// High-performance waveform visualization using TimelineView + Canvas
+/// Renders at 60fps with smooth frequency-bar animations responsive to audio level
 struct WaveformView: View {
     let audioLevel: CGFloat
     let barCount: Int = 50
     
+    // Store previous levels for smooth interpolation
+    @State private var displayLevel: CGFloat = 0.0
+    @State private var barPhases: [Double] = []
+    
     var body: some View {
-        HStack(spacing: 2.5) {
-            ForEach(0..<barCount, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(barGradient(for: index))
-                    .frame(width: 3.5)
-                    .frame(height: barHeight(for: index))
-                    .animation(
-                        .interpolatingSpring(stiffness: 300, damping: 15),
-                        value: audioLevel
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { timeline in
+            Canvas { context, size in
+                let barWidth: CGFloat = 3.5
+                let barSpacing: CGFloat = 2.5
+                let totalBarWidth = barWidth + barSpacing
+                let centerY = size.height / 2.0
+                let maxBarHeight = size.height
+                let centerIndex = CGFloat(barCount) / 2.0
+                
+                // Time-based phase for subtle animation
+                let time = timeline.date.timeIntervalSinceReferenceDate
+                
+                for i in 0..<barCount {
+                    let x = CGFloat(i) * totalBarWidth
+                    
+                    // Center-focused bell curve
+                    let distanceFromCenter = abs(CGFloat(i) - centerIndex)
+                    let normalizedDistance = distanceFromCenter / centerIndex
+                    let bellCurve = 1.0 - pow(normalizedDistance, 2)
+                    
+                    // Multi-frequency variation to simulate spectral analysis
+                    let freq1 = sin(Double(i) * 0.8 + time * 3.0) * 0.3
+                    let freq2 = cos(Double(i) * 0.4 + time * 2.0) * 0.2
+                    let freq3 = sin(Double(i) * 1.5 + time * 5.0) * 0.15
+                    let variance = 0.6 + freq1 + freq2 + freq3
+                    
+                    // Calculate dynamic height
+                    let baseHeight: CGFloat = 4.0
+                    let dynamicHeight = displayLevel * maxBarHeight * variance * bellCurve
+                    let barHeight = max(baseHeight, dynamicHeight)
+                    
+                    // Bar rect centered vertically
+                    let rect = CGRect(
+                        x: x,
+                        y: centerY - barHeight / 2.0,
+                        width: barWidth,
+                        height: barHeight
                     )
+                    let path = Path(roundedRect: rect, cornerRadius: 2.0)
+                    
+                    // Gradient opacity based on distance from center
+                    let opacity = 0.5 + (1.0 - normalizedDistance) * 0.5
+                    let color = Color(
+                        hue: 0.58 + normalizedDistance * 0.2, // Blue → Purple gradient
+                        saturation: 0.75,
+                        brightness: 0.95 * opacity
+                    )
+                    
+                    context.fill(path, with: .color(color))
+                }
             }
         }
         .frame(height: 80)
-        .drawingGroup() // Optimize rendering
-    }
-    
-    private func barGradient(for index: Int) -> LinearGradient {
-        let centerIndex = CGFloat(barCount) / 2
-        let distanceFromCenter = abs(CGFloat(index) - centerIndex) / centerIndex
-        let opacity = 0.5 + (1 - distanceFromCenter) * 0.5
-        
-        return LinearGradient(
-            colors: [
-                DesignSystem.Colors.primary.opacity(opacity),
-                DesignSystem.Colors.accent.opacity(opacity * 0.7)
-            ],
-            startPoint: .bottom,
-            endPoint: .top
-        )
-    }
-    
-    private func barHeight(for index: Int) -> CGFloat {
-        let baseHeight: CGFloat = 4
-        let maxHeight: CGFloat = 80
-        
-        // Center-focused bell curve
-        let centerIndex = CGFloat(barCount) / 2
-        let distanceFromCenter = abs(CGFloat(index) - centerIndex)
-        let normalizedDistance = distanceFromCenter / centerIndex
-        
-        // Deterministic variation to make it look like a frequency analysis
-        // Using sin/cos to create a "jagged" but fixed pattern that scales with volume
-        let variance = 0.8 + 0.5 * sin(Double(index) * 0.8) * cos(Double(index) * 0.4)
-        
-        // Calculate dynamic height
-        // audioLevel is 0.0-1.0
-        // We dampen the edges to 0, peak at center
-        let dynamicHeight = (audioLevel * maxHeight * variance) * (1.0 - pow(normalizedDistance, 2))
-        
-        return max(baseHeight, dynamicHeight)
+        .onChange(of: audioLevel) { _, newValue in
+            // Smooth interpolation to target level
+            withAnimation(.easeOut(duration: 0.08)) {
+                displayLevel = newValue
+            }
+        }
     }
 }

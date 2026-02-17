@@ -8,7 +8,21 @@ class HomeViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var isLoading = false
     
+    // Debounced search text — updated 300ms after user stops typing
+    @Published private var debouncedSearchText = ""
+    private var searchCancellable: AnyCancellable?
+    
     private var modelContext: ModelContext?
+    
+    init() {
+        // Debounce search to avoid filtering on every keystroke
+        searchCancellable = $searchText
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .removeDuplicates()
+            .sink { [weak self] value in
+                self?.debouncedSearchText = value
+            }
+    }
     
     func setModelContext(_ context: ModelContext) {
         self.modelContext = context
@@ -77,12 +91,12 @@ class HomeViewModel: ObservableObject {
             break
         }
         
-        // Search Filtering
-        if !searchText.isEmpty {
+        // Search Filtering (uses debounced text to avoid per-keystroke filtering)
+        if !debouncedSearchText.isEmpty {
             result = result.filter { lecture in
-                lecture.title.localizedCaseInsensitiveContains(searchText) ||
-                lecture.rawTranscript.localizedCaseInsensitiveContains(searchText) ||
-                lecture.processedNotes.localizedCaseInsensitiveContains(searchText)
+                lecture.title.localizedCaseInsensitiveContains(debouncedSearchText) ||
+                lecture.rawTranscript.localizedCaseInsensitiveContains(debouncedSearchText) ||
+                lecture.processedNotes.localizedCaseInsensitiveContains(debouncedSearchText)
             }
         }
         

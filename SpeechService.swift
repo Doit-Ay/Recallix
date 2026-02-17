@@ -128,9 +128,13 @@ class SpeechService: ObservableObject, @unchecked Sendable {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         
-        // Critical for summary generation: Enable punctuation
+        // On-device recognition is preferred for privacy/offline, but requires
+        // the speech model to be downloaded on-device. If it isn't available,
+        // recognition fails silently → empty transcript → save fails.
+        // Default to server-side for reliability; set to true for SSC demo
+        // on devices where the model is confirmed downloaded.
         if #available(iOS 13, *) {
-            request.requiresOnDeviceRecognition = false // Prefer server-side for better accuracy
+            request.requiresOnDeviceRecognition = false
             request.addsPunctuation = true
         }
         
@@ -149,8 +153,6 @@ class SpeechService: ObservableObject, @unchecked Sendable {
         
         // optimize for dictation
         request.taskHint = .dictation
-        
-        recognitionRequest = request
         
         recognitionRequest = request
         
@@ -179,7 +181,6 @@ class SpeechService: ObservableObject, @unchecked Sendable {
             hasInstalledTap = false
         }
         
-        // Install tap — this closure is NOT @MainActor because we're nonisolated
         // Install tap — this closure is NOT @MainActor because we're nonisolated
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
             request.append(buffer)

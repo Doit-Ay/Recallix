@@ -131,10 +131,78 @@ struct NotesProcessor: Sendable {
         )
     }
     
-    /// Extract key points from transcript (Legacy/Helper)
+    /// Extract key points from transcript using NLP analysis
     func extractKeyPoints(from transcript: String) -> [String] {
-        // Not used heavily anymore, but good for searching
-        return []
+        let cleanTranscript = preprocessTranscript(transcript)
+        let sentences = cleanTranscript.components(separatedBy: CharacterSet(charactersIn: ".!?"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && $0.count > 10 }
+        
+        var keyPoints: [String] = []
+        
+        let tagger = NLTagger(tagSchemes: [.lexicalClass, .nameType])
+        
+        for sentence in sentences {
+            let lowerSentence = sentence.lowercased()
+            
+            // Skip action items — those go into summary.actionItems instead
+            if containsActionItemKeyword(lowerSentence) { continue }
+            
+            var score = 0
+            
+            // 1. Definition patterns ("X is Y", "X means Y", "X refers to Y")
+            let definitionPatterns = ["is defined as", "refers to", "is known as", "means that", "is a ", "is an ", "are called"]
+            for pattern in definitionPatterns {
+                if lowerSentence.contains(pattern) {
+                    score += 3
+                    break
+                }
+            }
+            
+            // 2. Emphasis keywords boost
+            if containsNarrativeKeyword(lowerSentence) {
+                score += 2
+            }
+            
+            // 3. NLP analysis: noun density and named entities
+            tagger.string = sentence
+            var nounCount = 0
+            var hasNamedEntity = false
+            var wordCount = 0
+            
+            tagger.enumerateTags(in: sentence.startIndex..<sentence.endIndex, unit: .word, scheme: .lexicalClass, options: [.omitPunctuation, .omitWhitespace]) { tag, _ in
+                wordCount += 1
+                if let tag = tag, tag == .noun {
+                    nounCount += 1
+                }
+                return true
+            }
+            
+            // Check for named entities (people, places, organizations)
+            tagger.enumerateTags(in: sentence.startIndex..<sentence.endIndex, unit: .word, scheme: .nameType, options: [.omitPunctuation, .omitWhitespace, .joinNames]) { tag, _ in
+                if let tag = tag, tag == .personalName || tag == .placeName || tag == .organizationName {
+                    hasNamedEntity = true
+                }
+                return true
+            }
+            
+            // High noun density → likely technical/informational
+            if wordCount > 0 {
+                let nounRatio = Double(nounCount) / Double(wordCount)
+                if nounRatio > 0.35 { score += 2 }
+                else if nounCount >= 3 { score += 1 }
+            }
+            
+            if hasNamedEntity { score += 1 }
+            
+            // Threshold: score >= 2 qualifies as a key point
+            if score >= 2 && !keyPoints.contains(sentence) {
+                keyPoints.append(sentence)
+            }
+        }
+        
+        // Cap at 10 key points to keep it useful
+        return Array(keyPoints.prefix(10))
     }
     
     // MARK: - Helper Methods

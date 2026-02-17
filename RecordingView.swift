@@ -38,7 +38,7 @@ struct RecordingView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
-                        viewModel.speechService.stopRecording()
+                        viewModel.cleanup()
                         dismiss()
                     }
                 }

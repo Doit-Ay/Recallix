@@ -22,4 +22,3 @@ struct RecallixApp: App {
         .modelContainer(modelContainer)
     }
 }
-//for try

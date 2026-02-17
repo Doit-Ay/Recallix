@@ -45,6 +45,8 @@ struct HomeView: View {
                                     .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(DesignSystem.Colors.label)
                             }
+                            .accessibilityLabel("Notifications")
+                            .accessibilityHint("View your reminders and action items")
                         }
                     }
                     .padding(.horizontal, DesignSystem.Spacing.md)
@@ -166,6 +168,8 @@ struct HomeView: View {
                         }
                         .padding(.trailing, 20)
                         .padding(.bottom, 20)
+                        .accessibilityLabel("Start Recording")
+                        .accessibilityHint("Tap to begin recording a new lecture")
                     }
                 }
             }

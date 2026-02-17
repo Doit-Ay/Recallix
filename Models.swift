@@ -100,7 +100,6 @@ enum ReminderInterval: String, Codable {
 }
 
 // Summary data structure (not persisted, generated on-the-fly)
-// Summary data structure (not persisted, generated on-the-fly)
 struct LectureSummary: Sendable {
     var text: String
     var actionItems: [String]
