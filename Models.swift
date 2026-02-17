@@ -1,6 +1,13 @@
 import Foundation
 import SwiftData
 
+// MARK: - Transcript Segment (for karaoke mode)
+struct TranscriptSegment: Codable {
+    let word: String
+    let timestamp: TimeInterval
+    let duration: TimeInterval
+}
+
 @Model
 final class Lecture {
     @Attribute(.unique) var id: UUID
@@ -10,6 +17,8 @@ final class Lecture {
     var processedNotes: String
     var duration: TimeInterval
     var audioFilename: String? // Optional: Filename of saved audio
+    var waveformData: [Float]? // Audio levels sampled every 0.1s during recording
+    var segmentsJSON: Data? // Encoded [TranscriptSegment] for karaoke mode
     
     @Relationship(deleteRule: .cascade) var keyPoints: [KeyPoint]?
     @Relationship(deleteRule: .cascade) var reminders: [Reminder]?
@@ -22,6 +31,16 @@ final class Lecture {
         self.processedNotes = processedNotes
         self.duration = duration
         self.audioFilename = audioFilename
+    }
+    
+    // MARK: - Segment Helpers
+    var transcriptSegments: [TranscriptSegment] {
+        guard let data = segmentsJSON else { return [] }
+        return (try? JSONDecoder().decode([TranscriptSegment].self, from: data)) ?? []
+    }
+    
+    func setSegments(_ segments: [TranscriptSegment]) {
+        segmentsJSON = try? JSONEncoder().encode(segments)
     }
     
     var formattedDate: String {

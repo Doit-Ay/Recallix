@@ -2,8 +2,9 @@ import SwiftUI
 
 struct AudioPlayerView: View {
     @ObservedObject var service: AudioPlayerService
+    var waveformData: [Float]? // Real waveform from recording, nil = use deterministic
     
-    // Pre-generated waveform bar heights (deterministic per duration)
+    // Pre-generated waveform bar heights
     @State private var barHeights: [CGFloat] = []
     private let barCount = 50
     
@@ -81,19 +82,47 @@ struct AudioPlayerView: View {
     
     // MARK: - Helpers
     
-    /// Generate deterministic bar heights based on duration
+    /// Generate bar heights from real waveform data or deterministic fallback
     private func generateBarHeights() {
-        var heights: [CGFloat] = []
-        // Use a simple deterministic sequence for consistent waveform shape
-        let seed = Int(service.duration * 100) &+ 42
-        for i in 0..<barCount {
-            let hash = (seed &* 31 &+ i &* 17) &* 13
-            let normalized = abs(hash % 100)
-            // Heights between 6 and 32, with bias toward medium values
-            let height = CGFloat(6 + (normalized % 26))
-            heights.append(height)
+        if let realData = waveformData, !realData.isEmpty {
+            // Downsample real waveform to barCount bars
+            barHeights = downsample(realData, to: barCount)
+        } else {
+            // Deterministic fallback for lectures without recorded waveform
+            var heights: [CGFloat] = []
+            let seed = Int(service.duration * 100) &+ 42
+            for i in 0..<barCount {
+                let hash = (seed &* 31 &+ i &* 17) &* 13
+                let normalized = abs(hash % 100)
+                let height = CGFloat(6 + (normalized % 26))
+                heights.append(height)
+            }
+            barHeights = heights
         }
-        barHeights = heights
+    }
+    
+    /// Downsample waveform data to a fixed number of bars
+    private func downsample(_ data: [Float], to count: Int) -> [CGFloat] {
+        guard !data.isEmpty else { return Array(repeating: 4, count: count) }
+        
+        let chunkSize = max(1, data.count / count)
+        var bars: [CGFloat] = []
+        
+        for i in 0..<count {
+            let start = i * chunkSize
+            let end = min(start + chunkSize, data.count)
+            if start < data.count {
+                let chunk = data[start..<end]
+                let avg = chunk.reduce(0, +) / Float(chunk.count)
+                // Scale: audioLevel typically 0.0-0.5, map to 4-32px
+                let height = CGFloat(max(4, min(32, avg * 64 + 4)))
+                bars.append(height)
+            } else {
+                bars.append(4)
+            }
+        }
+        
+        return bars
     }
     
     private func formatTime(_ time: TimeInterval) -> String {

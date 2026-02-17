@@ -82,11 +82,28 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     NavigationLink(destination: NotificationView()) {
-                        Image(systemName: "bell.fill")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(DesignSystem.Colors.label)
+                        ZStack {
+                            Circle()
+                                .fill(DesignSystem.Colors.searchBarBackground)
+                                .background(
+                                    Circle().fill(.ultraThinMaterial)
+                                )
+                                .frame(width: 44, height: 44)
+                                .overlay(
+                                    Circle()
+                                        .stroke(DesignSystem.Colors.glassBorder, lineWidth: 0.5)
+                                )
+                            
+                            Image(systemName: "bell.fill")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(DesignSystem.Colors.label)
+                        }
                     }
                     .accessibilityLabel("Notifications")
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    filterButton
                 }
                 ToolbarItem(placement: .bottomBar) {
                     Button(action: { showingRecording = true }) {
@@ -153,69 +170,6 @@ struct HomeView: View {
                         Spacer()
                         NavigationLink(destination: NotificationView()) {
                             ZStack {
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
-                                        .frame(width: 40, height: 40)
-                                        .overlay(
-                                            Circle()
-                                                .stroke(Color.primary.opacity(0.8), lineWidth: 0.8)
-                                        )
-                                
-                                Image(systemName: "bell.fill")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(DesignSystem.Colors.label)
-                            }
-                            .accessibilityLabel("Notifications")
-                            .accessibilityHint("View your reminders and action items")
-                        }
-                    }
-                    .padding(.horizontal, DesignSystem.Spacing.md)
-                    .padding(.top, DesignSystem.Spacing.xl)
-                    .padding(.bottom, DesignSystem.Spacing.sm)
-                    
-                    // Search and Filter
-                    HStack(spacing: DesignSystem.Spacing.sm) {
-                        // ... (Search bar remains same)
-                        HStack(spacing: DesignSystem.Spacing.sm) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(DesignSystem.Colors.secondaryLabel)
-                            
-                            TextField("Search lectures...", text: $viewModel.searchText)
-                                .font(DesignSystem.Typography.body)
-                            
-                            if !viewModel.searchText.isEmpty {
-                                Button(action: { viewModel.searchText = "" }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(DesignSystem.Colors.tertiaryLabel)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, DesignSystem.Spacing.md)
-                        .padding(.vertical, DesignSystem.Spacing.sm + 2)
-                        .background(DesignSystem.Colors.searchBarBackground)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(DesignSystem.Colors.glassBorder, lineWidth: 0.5)
-                        )
-                        
-                        // Filter Button
-                        Menu {
-                            Picker("Date Filter", selection: $viewModel.selectedDateFilter) {
-                                ForEach(HomeViewModel.DateFilter.allCases) { filter in
-                                    Text(filter.rawValue).tag(filter)
-                                }
-                            }
-                            .onChange(of: viewModel.selectedDateFilter) { newValue in
-                                if newValue == .custom {
-                                    showingDateFilterSheet = true
-                                }
-                            }
-                        } label: {
-                            ZStack {
                                 Circle()
                                     .fill(DesignSystem.Colors.searchBarBackground)
                                     .background(
@@ -227,14 +181,24 @@ struct HomeView: View {
                                             .stroke(DesignSystem.Colors.glassBorder, lineWidth: 0.5)
                                     )
                                 
-                                Image(systemName: viewModel.selectedDateFilter == .allTime ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                                Image(systemName: "bell.fill")
                                     .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(viewModel.selectedDateFilter == .allTime ? DesignSystem.Colors.secondaryLabel : DesignSystem.Colors.primary)
+                                    .foregroundColor(DesignSystem.Colors.label)
                             }
+                            .accessibilityLabel("Notifications")
+                            .accessibilityHint("View your reminders and action items")
                         }
+                        
+                        // Filter Button
+                        filterButton
                     }
                     .padding(.horizontal, DesignSystem.Spacing.md)
-                    .padding(.bottom, DesignSystem.Spacing.md)
+                    .padding(.top, DesignSystem.Spacing.xl)
+                    .padding(.bottom, DesignSystem.Spacing.sm)
+                    
+                    // Search and Filter
+                    searchAndFilterBar
+                        .padding(.bottom, DesignSystem.Spacing.md)
                     
                     // ... (Content remains same)
                     // Content
@@ -350,65 +314,64 @@ struct HomeView: View {
     // MARK: - Search and Filter Bar (shared by iPhone + iPad)
     private var searchAndFilterBar: some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(DesignSystem.Colors.secondaryLabel)
-                
-                TextField("Search lectures...", text: $viewModel.searchText)
-                    .font(DesignSystem.Typography.body)
-                
-                if !viewModel.searchText.isEmpty {
-                    Button(action: { viewModel.searchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(DesignSystem.Colors.tertiaryLabel)
-                    }
-                }
-            }
-            .padding(.horizontal, DesignSystem.Spacing.md)
-            .padding(.vertical, DesignSystem.Spacing.sm + 2)
-            .background(DesignSystem.Colors.searchBarBackground)
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(DesignSystem.Colors.glassBorder, lineWidth: 0.5)
-            )
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(DesignSystem.Colors.secondaryLabel)
             
-            // Filter Button
-            Menu {
-                Picker("Date Filter", selection: $viewModel.selectedDateFilter) {
-                    ForEach(HomeViewModel.DateFilter.allCases) { filter in
-                        Text(filter.rawValue).tag(filter)
-                    }
-                }
-                .onChange(of: viewModel.selectedDateFilter) { newValue in
-                    if newValue == .custom {
-                        showingDateFilterSheet = true
-                    }
-                }
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(DesignSystem.Colors.searchBarBackground)
-                        .background(
-                            Circle().fill(.ultraThinMaterial)
-                        )
-                        .frame(width: 44, height: 44)
-                        .overlay(
-                            Circle()
-                                .stroke(DesignSystem.Colors.glassBorder, lineWidth: 0.5)
-                        )
-                    
-                    Image(systemName: viewModel.selectedDateFilter == .allTime ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(viewModel.selectedDateFilter == .allTime ? DesignSystem.Colors.secondaryLabel : DesignSystem.Colors.primary)
+            TextField("Search lectures...", text: $viewModel.searchText)
+                .font(DesignSystem.Typography.body)
+            
+            if !viewModel.searchText.isEmpty {
+                Button(action: { viewModel.searchText = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(DesignSystem.Colors.tertiaryLabel)
                 }
             }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.bottom, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.sm + 2)
+        .background(DesignSystem.Colors.searchBarBackground)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(DesignSystem.Colors.glassBorder, lineWidth: 0.5)
+        )
+        .padding(.horizontal, DesignSystem.Spacing.md)
+    }
+    
+    // MARK: - Filter Button
+    private var filterButton: some View {
+        Menu {
+            Picker("Date Filter", selection: $viewModel.selectedDateFilter) {
+                ForEach(HomeViewModel.DateFilter.allCases) { filter in
+                    Text(filter.rawValue).tag(filter)
+                }
+            }
+            .onChange(of: viewModel.selectedDateFilter) { newValue in
+                if newValue == .custom {
+                    showingDateFilterSheet = true
+                }
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(DesignSystem.Colors.searchBarBackground)
+                    .background(
+                        Circle().fill(.ultraThinMaterial)
+                    )
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .stroke(DesignSystem.Colors.glassBorder, lineWidth: 0.5)
+                    )
+                
+                Image(systemName: viewModel.selectedDateFilter == .allTime ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(viewModel.selectedDateFilter == .allTime ? DesignSystem.Colors.label : DesignSystem.Colors.primary)
+            }
+        }
     }
     
     // MARK: - Date Filter Sheet (shared by iPhone + iPad)
@@ -510,6 +473,12 @@ struct HomeView: View {
                 ForEach(Array(viewModel.filteredLectures.enumerated()), id: \.element.id) { index, lecture in
                     NavigationLink(destination: NotesView(lecture: lecture)) {
                         LectureCard(lecture: lecture)
+                            .scrollTransition { content, phase in
+                                content
+                                    .opacity(phase.isIdentity ? 1 : 0.8)
+                                    .scaleEffect(phase.isIdentity ? 1 : 0.95)
+                                    .blur(radius: phase.isIdentity ? 0 : 2)
+                            }
                     }
                     .buttonStyle(.plain)
                     .opacity(cardsAppeared ? 1 : 0)

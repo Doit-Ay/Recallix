@@ -240,10 +240,33 @@ struct NotesProcessor: Sendable {
     func containsImportantKeyword(_ text: String) -> Bool {
         let lowercased = text.lowercased()
         let allKeywords = actionItemKeywords + narrativeEmphasisKeywords
-        return allKeywords.contains { lowercased.contains($0) }
+        if allKeywords.contains(where: { lowercased.contains($0) }) {
+            return true
+        }
+        return isSemanticallySimilarToKeyword(lowercased)
     }
     
     // MARK: - NLP Integration
+    
+    /// Seed concepts for semantic similarity matching
+    private static let semanticSeeds = ["exam", "important", "concept", "deadline", "assignment", "definition"]
+    
+    /// Check semantic similarity using NLEmbedding
+    /// Catches words like "midterm", "assessment", "prerequisite" that aren't in keyword lists
+    private func isSemanticallySimilarToKeyword(_ text: String) -> Bool {
+        guard let embedding = NLEmbedding.wordEmbedding(for: .english) else { return false }
+        
+        let words = text.components(separatedBy: .whitespaces).filter { $0.count > 3 }
+        for word in words {
+            for seed in Self.semanticSeeds {
+                let distance = embedding.distance(between: word.lowercased(), and: seed)
+                if distance < 0.5 {
+                    return true
+                }
+            }
+        }
+        return false
+    }
     
     /// Uses NaturalLanguage framework to determine if a sentence mentions significant nouns/topics
     private func isSentenceImportantNLP(_ sentence: String) -> Bool {

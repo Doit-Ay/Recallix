@@ -14,6 +14,8 @@ class SpeechService: ObservableObject, @unchecked Sendable {
     @Published var transcript = ""
     @Published var audioLevel: Float = 0.0
     @Published var errorMessage: String?
+    @Published var waveformSamples: [Float] = [] // Audio levels sampled during recording
+    @Published var currentSegments: [TranscriptSegment] = [] // Word-level timestamps
     
 
     // Audio properties — nonisolated(unsafe) so nonisolated methods can access them
@@ -244,6 +246,11 @@ class SpeechService: ObservableObject, @unchecked Sendable {
             let isFinal = result?.isFinal ?? false
             let errorDesc = error?.localizedDescription
             
+            // Extract word-level segments for karaoke mode
+            let segments: [TranscriptSegment]? = result?.bestTranscription.segments.map { seg in
+                TranscriptSegment(word: seg.substring, timestamp: seg.timestamp, duration: seg.duration)
+            }
+            
             if let errorDesc {
                 print("[SpeechService] Recognition error: \(errorDesc)")
             }
@@ -254,6 +261,10 @@ class SpeechService: ObservableObject, @unchecked Sendable {
                 
                 if let transcriptText {
                     self.transcript = transcriptText
+                }
+                
+                if let segments {
+                    self.currentSegments = segments
                 }
                 
                 if errorDesc != nil || isFinal {

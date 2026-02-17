@@ -8,6 +8,8 @@ struct NotesView: View {
     @State private var showingReminderPicker = false
     @State private var showingShareSheet = false
     @State private var showingDeleteAlert = false
+    @State private var karaokeEnabled = false
+    @State private var showingFlashcards = false
     
     init(lecture: Lecture) {
         _viewModel = StateObject(wrappedValue: NotesViewModel(
@@ -24,8 +26,14 @@ struct NotesView: View {
                 
                 // Audio Player
                 if viewModel.audioPlayerService.isAudioAvailable {
-                    AudioPlayerView(service: viewModel.audioPlayerService)
-                        .padding(.bottom, DesignSystem.Spacing.md)
+                    AudioPlayerView(service: viewModel.audioPlayerService,
+                                    waveformData: viewModel.lecture.waveformData)
+                        .padding(.bottom, DesignSystem.Spacing.sm)
+                    
+                    // Karaoke transcript (time-synced)
+                    if !viewModel.lecture.transcriptSegments.isEmpty {
+                        karaokeSection
+                    }
                 }
                 
                 // Summary section
@@ -45,6 +53,15 @@ struct NotesView: View {
         .navigationTitle("Lecture Notes")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                if !viewModel.lecture.safeKeyPoints.isEmpty {
+                    Button(action: { showingFlashcards = true }) {
+                        Label("Study", systemImage: "rectangle.on.rectangle.angled")
+                            .font(.system(size: 16))
+                            .foregroundColor(DesignSystem.Colors.primary)
+                    }
+                }
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button(action: {
@@ -75,6 +92,9 @@ struct NotesView: View {
         }
         .onAppear {
             viewModel.setModelContext(modelContext)
+        }
+        .sheet(isPresented: $showingFlashcards) {
+            FlashcardView(lecture: viewModel.lecture)
         }
         .sheet(isPresented: $showingReminderPicker) {
             reminderPickerSheet
@@ -213,6 +233,74 @@ struct NotesView: View {
         return attributed
     }
     
+    // MARK: - Karaoke Mode (Time-Synced Transcript)
+    private var karaokeSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            // Toggle header
+            Button(action: { 
+                withAnimation(DesignSystem.Animation.standard) {
+                    karaokeEnabled.toggle()
+                }
+            }) {
+                HStack {
+                    Label("Live Transcript", systemImage: karaokeEnabled ? "text.word.spacing" : "text.alignleft")
+                        .font(DesignSystem.Typography.headline)
+                        .foregroundColor(DesignSystem.Colors.label)
+                    Spacer()
+                    Image(systemName: karaokeEnabled ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(DesignSystem.Colors.tertiaryLabel)
+                }
+            }
+            .buttonStyle(.plain)
+            
+            if karaokeEnabled {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        karaokeText
+                            .padding(.vertical, DesignSystem.Spacing.xs)
+                    }
+                    .onChange(of: viewModel.audioPlayerService.currentTime) { _, newTime in
+                        // Auto-scroll to current word
+                        let segments = viewModel.lecture.transcriptSegments
+                        if let idx = segments.lastIndex(where: { $0.timestamp <= newTime }) {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                proxy.scrollTo(idx, anchor: .center)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .cardStyle()
+    }
+    
+    /// Build karaoke text with current word highlighted
+    private var karaokeText: some View {
+        let segments = viewModel.lecture.transcriptSegments
+        let currentTime = viewModel.audioPlayerService.currentTime
+        
+        return HStack(spacing: 4) {
+            ForEach(Array(segments.enumerated()), id: \.offset) { index, segment in
+                let isActive = currentTime >= segment.timestamp &&
+                    currentTime < segment.timestamp + max(segment.duration, 0.3)
+                
+                Text(segment.word)
+                    .font(isActive ? .system(.body, design: .rounded, weight: .bold) : DesignSystem.Typography.body)
+                    .foregroundColor(isActive ? .white : DesignSystem.Colors.label)
+                    .padding(.horizontal, isActive ? 6 : 2)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(isActive ? DesignSystem.Colors.primary : Color.clear)
+                    )
+                    .scaleEffect(isActive ? 1.1 : 1.0)
+                    .animation(DesignSystem.Animation.quick, value: isActive)
+                    .id(index)
+            }
+        }
+    }
 
     
     // MARK: - Reminder Picker Sheet

@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
 import Combine
+import CoreSpotlight
+import UniformTypeIdentifiers
 
 @MainActor
 class RecordingViewModel: ObservableObject {
@@ -10,6 +12,7 @@ class RecordingViewModel: ObservableObject {
     @Published var elapsedTime: TimeInterval = 0
     @Published var audioLevel: CGFloat = 0.0
     @Published var errorMessage: String?
+    private var waveformSamples: [Float] = [] // Collected during recording
     
     // Audio Size Estimate (approx 10 MB/min for uncompressed LPCM/CAF)
     var formattedAudioSize: String {
@@ -136,6 +139,17 @@ class RecordingViewModel: ObservableObject {
             duration: elapsedTime
         )
         
+        // Save waveform data for real audio visualizer
+        if !waveformSamples.isEmpty {
+            lecture.waveformData = waveformSamples
+        }
+        
+        // Save transcript segments for karaoke mode
+        let segments = speechService.currentSegments
+        if !segments.isEmpty {
+            lecture.setSegments(segments)
+        }
+        
         // Handle Audio Saving
         if saveAudio, let tempURL = speechService.recordedAudioURL {
             let savedFilename = duplicateAudioToDocuments(from: tempURL)
@@ -174,6 +188,8 @@ class RecordingViewModel: ObservableObject {
         
         do {
             try context.save()
+            // Index in Spotlight for Home Screen search
+            indexInSpotlight(lecture)
             reset()
             return lecture
         } catch {
@@ -186,6 +202,7 @@ class RecordingViewModel: ObservableObject {
     func reset() {
         transcript = ""
         elapsedTime = 0
+        waveformSamples = []
         errorMessage = nil
         speechService.reset()
     }
@@ -220,8 +237,11 @@ class RecordingViewModel: ObservableObject {
         audioTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled && self.isRecording && !self.isPaused {
-                self.audioLevel = CGFloat(self.speechService.audioLevel)
-                try? await Task.sleep(nanoseconds: 50_000_000) // 20fps update
+                let level = self.speechService.audioLevel
+                self.audioLevel = CGFloat(level)
+                // Sample waveform every ~100ms (every 2nd frame at 20fps)
+                self.waveformSamples.append(level)
+                try? await Task.sleep(nanoseconds: 100_000_000) // 10fps for waveform
             }
             self.audioLevel = 0
         }
@@ -260,6 +280,27 @@ class RecordingViewModel: ObservableObject {
         } catch {
             print("Failed to save audio: \(error.localizedDescription)")
             return nil
+        }
+    }
+    
+    // MARK: - Spotlight Indexing
+    
+    private func indexInSpotlight(_ lecture: Lecture) {
+        let attributeSet = CSSearchableItemAttributeSet(contentType: .text)
+        attributeSet.title = lecture.title
+        attributeSet.contentDescription = lecture.preview
+        attributeSet.identifier = lecture.id.uuidString
+        
+        let item = CSSearchableItem(
+            uniqueIdentifier: lecture.id.uuidString,
+            domainIdentifier: "com.recallix.lectures",
+            attributeSet: attributeSet
+        )
+        
+        CSSearchableIndex.default().indexSearchableItems([item]) { error in
+            if let error {
+                print("[Spotlight] Indexing error: \(error.localizedDescription)")
+            }
         }
     }
 }
