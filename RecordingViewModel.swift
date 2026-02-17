@@ -114,9 +114,10 @@ class RecordingViewModel: ObservableObject {
         // Final sync of transcript
         self.transcript = speechService.transcript
         
-        guard !transcript.isEmpty else {
-            errorMessage = "No transcript to save"
-            return nil
+        // Allow saving even with empty transcript (e.g. recognition failed on iPad)
+        // The user may want to save just the audio recording
+        if transcript.isEmpty {
+            transcript = "(No transcript available)"
         }
         
         // Process the transcript

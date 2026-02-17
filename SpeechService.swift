@@ -69,6 +69,21 @@ class SpeechService: ObservableObject, @unchecked Sendable {
             ])
         }
         
+        // Ensure microphone permission is granted before touching audio engine
+        let micStatus = AVAudioApplication.shared.recordPermission
+        guard micStatus == .granted else {
+            AVAudioApplication.requestRecordPermission { granted in
+                Task { @MainActor [weak self] in
+                    if !granted {
+                        self?.errorMessage = "Microphone access denied. Please enable in Settings."
+                    }
+                }
+            }
+            throw NSError(domain: "SpeechService", code: 4, userInfo: [
+                NSLocalizedDescriptionKey: "Microphone permission required. Please allow access and try again."
+            ])
+        }
+        
         // Audio setup in nonisolated context — critical for Swift 6
         // Closures defined in nonisolated methods don't inherit @MainActor
         try setupAndStartAudioEngine()
@@ -116,7 +131,7 @@ class SpeechService: ObservableObject, @unchecked Sendable {
         // Configure audio session
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker])
+            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.duckOthers, .defaultToSpeaker])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             throw NSError(domain: "SpeechService", code: 2, userInfo: [
@@ -129,9 +144,12 @@ class SpeechService: ObservableObject, @unchecked Sendable {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         
-        // Always use on-device recognition: fully offline, privacy-first
+        // Prefer on-device recognition for privacy/offline, but gracefully
+        // fall back to server-side if the on-device model isn't available
+        // (e.g. iPad simulator, or model not downloaded on device)
         if #available(iOS 13, *) {
-            request.requiresOnDeviceRecognition = true
+            let onDeviceAvailable = speechRecognizer?.supportsOnDeviceRecognition ?? false
+            request.requiresOnDeviceRecognition = onDeviceAvailable
             request.addsPunctuation = true
         }
         
@@ -225,6 +243,10 @@ class SpeechService: ObservableObject, @unchecked Sendable {
             let transcriptText = result?.bestTranscription.formattedString
             let isFinal = result?.isFinal ?? false
             let errorDesc = error?.localizedDescription
+            
+            if let errorDesc {
+                print("[SpeechService] Recognition error: \(errorDesc)")
+            }
             
             // Hop to MainActor to update UI state
             Task { @MainActor [weak self] in

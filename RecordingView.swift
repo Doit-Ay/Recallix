@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AVFoundation
 
 struct RecordingView: View {
     @Environment(\.modelContext) private var modelContext
@@ -12,21 +13,27 @@ struct RecordingView: View {
     @State private var showingSaveAlert = false
     @State private var recordingName = ""
     @State private var saveAudio = false // Default unchecked as requested
+    @State private var animateGradient = false
     
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background gradient
+                // Breathing animated gradient background
                 LinearGradient(
                     colors: [
-                        DesignSystem.Colors.primary.opacity(0.15),
-                        DesignSystem.Colors.background,
+                        DesignSystem.Colors.primary.opacity(0.18),
+                        DesignSystem.Colors.accent.opacity(0.08),
                         DesignSystem.Colors.background
                     ],
-                    startPoint: .top,
-                    endPoint: .bottom
+                    startPoint: animateGradient ? .topLeading : .top,
+                    endPoint: animateGradient ? .bottomTrailing : .bottom
                 )
                 .ignoresSafeArea()
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+                        animateGradient = true
+                    }
+                }
                 
                 if !viewModel.speechService.isAuthorized {
                     permissionView
@@ -46,9 +53,10 @@ struct RecordingView: View {
             .onAppear {
                 viewModel.setModelContext(modelContext)
                 viewModel.speechService.checkAuthorization()
-                // Auto-start recording after a brief delay
+                // Auto-start recording after a brief delay, only if fully authorized
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    if viewModel.speechService.isAuthorized && !viewModel.isRecording {
+                    let micGranted = AVAudioApplication.shared.recordPermission == .granted
+                    if viewModel.speechService.isAuthorized && micGranted && !viewModel.isRecording {
                         viewModel.startRecording()
                     }
                 }

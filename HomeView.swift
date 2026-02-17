@@ -9,8 +9,8 @@ struct HomeView: View {
     @State private var showingRecording = false
     @State private var fabScale: CGFloat = 1.0
     @State private var selectedLecture: Lecture? = nil
-    @State private var navigateToNotes = false
     @State private var showingDateFilterSheet = false
+    @State private var cardsAppeared = false
     
     var body: some View {
         Group {
@@ -100,12 +100,19 @@ struct HomeView: View {
         } detail: {
             if let lecture = selectedLecture {
                 NotesView(lecture: lecture)
+                    .id(lecture.id)
             } else {
-                ContentUnavailableView(
-                    "Select a Lecture",
-                    systemImage: "doc.text.magnifyingglass",
-                    description: Text("Choose a lecture from the sidebar to view its notes")
-                )
+                VStack(spacing: 20) {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .font(.system(size: 60))
+                        .foregroundColor(DesignSystem.Colors.tertiaryLabel)
+                    Text("Select a Lecture")
+                        .font(DesignSystem.Typography.title2)
+                        .foregroundColor(DesignSystem.Colors.secondaryLabel)
+                    Text("Choose a lecture from the sidebar to view its notes")
+                        .font(DesignSystem.Typography.body)
+                        .foregroundColor(DesignSystem.Colors.tertiaryLabel)
+                }
             }
         }
         .fullScreenCover(isPresented: $showingRecording) {
@@ -298,12 +305,6 @@ struct HomeView: View {
                 .environment(\.modelContext, modelContext)
                 .onDisappear {
                     viewModel.loadLectures()
-                    // Navigate to notes after sheet dismisses
-                    if selectedLecture != nil {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            navigateToNotes = true
-                        }
-                    }
                 }
             }
             .sheet(isPresented: $showingDateFilterSheet) {
@@ -339,11 +340,7 @@ struct HomeView: View {
                     .presentationDetents([.medium])
                 }
             }
-            .navigationDestination(isPresented: $navigateToNotes) {
-                if let lecture = selectedLecture {
-                    NotesView(lecture: lecture)
-                }
-            }
+
             .onAppear {
                 viewModel.setModelContext(modelContext)
             }
@@ -510,11 +507,17 @@ struct HomeView: View {
             }
             
             LazyVStack(spacing: DesignSystem.Spacing.sm) {
-                ForEach(viewModel.filteredLectures, id: \.id) { lecture in
+                ForEach(Array(viewModel.filteredLectures.enumerated()), id: \.element.id) { index, lecture in
                     NavigationLink(destination: NotesView(lecture: lecture)) {
                         LectureCard(lecture: lecture)
                     }
                     .buttonStyle(.plain)
+                    .opacity(cardsAppeared ? 1 : 0)
+                    .offset(y: cardsAppeared ? 0 : 30)
+                    .animation(
+                        DesignSystem.Animation.spring.delay(Double(index) * 0.06),
+                        value: cardsAppeared
+                    )
                     .contextMenu {
                         Button(role: .destructive) {
                             withAnimation {
@@ -529,6 +532,8 @@ struct HomeView: View {
             .padding(.horizontal, DesignSystem.Spacing.md)
             // Extra bottom padding so last card isn't hidden behind FAB
             .padding(.bottom, 100)
+            .onAppear { cardsAppeared = true }
+            .onDisappear { cardsAppeared = false }
         }
     }
 }

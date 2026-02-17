@@ -181,13 +181,36 @@ struct NotesView: View {
             let text = viewModel.lecture.processedNotes.isEmpty ? 
                 viewModel.lecture.rawTranscript : viewModel.lecture.processedNotes
             
-            Text(text)
+            Text(highlightedText(text))
                 .font(DesignSystem.Typography.body)
-                .foregroundColor(DesignSystem.Colors.label)
                 .textSelection(.enabled)
         }
         .padding(DesignSystem.Spacing.md)
         .cardStyle()
+    }
+    
+    /// Build an AttributedString with keyword highlights
+    private func highlightedText(_ text: String) -> AttributedString {
+        var attributed = AttributedString(text)
+        
+        let processor = NotesProcessor()
+        let keywordRanges = processor.getKeywordRanges(in: text)
+        
+        for match in keywordRanges {
+            // Convert String.Index range to AttributedString range
+            let startOffset = text.distance(from: text.startIndex, to: match.range.lowerBound)
+            let endOffset = text.distance(from: text.startIndex, to: match.range.upperBound)
+            
+            let attrStart = attributed.index(attributed.startIndex, offsetByCharacters: startOffset)
+            let attrEnd = attributed.index(attributed.startIndex, offsetByCharacters: endOffset)
+            let attrRange = attrStart..<attrEnd
+            
+            attributed[attrRange].font = .system(.body, design: .default, weight: .bold)
+            attributed[attrRange].backgroundColor = DesignSystem.Colors.keywordHighlight
+            attributed[attrRange].foregroundColor = DesignSystem.Colors.label
+        }
+        
+        return attributed
     }
     
 
