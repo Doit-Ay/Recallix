@@ -8,8 +8,8 @@ struct StartRecordingIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult {
-        NotificationCenter.default.post(name: .startRecordingFromShortcut, object: nil)
-        return .result(dialog: "Opening Recallix. Tap the mic to start recording.")
+        AppState.shared.shouldOpenRecording = true
+        return .result(dialog: "Opening Recallix to start recording.")
     }
 }
 
@@ -24,11 +24,7 @@ struct SearchLecturesIntent: AppIntent {
     
     @MainActor
     func perform() async throws -> some IntentResult {
-        NotificationCenter.default.post(
-            name: .searchLecturesFromShortcut,
-            object: nil,
-            userInfo: ["searchTerm": searchTerm]
-        )
+        AppState.shared.searchQuery = searchTerm
         return .result(dialog: "Searching for \(searchTerm) in Recallix")
     }
 }
@@ -56,11 +52,4 @@ struct RecallixShortcuts: AppShortcutsProvider {
             systemImageName: "magnifyingglass"
         )
     }
-}
-
-// MARK: - Notification Names
-
-extension Notification.Name {
-    static let startRecordingFromShortcut = Notification.Name("startRecordingFromShortcut")
-    static let searchLecturesFromShortcut = Notification.Name("searchLecturesFromShortcut")
 }

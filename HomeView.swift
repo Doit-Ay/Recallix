@@ -5,6 +5,7 @@ struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @StateObject private var viewModel = HomeViewModel()
+    @StateObject private var appState = AppState.shared
     @State private var showingRecording = false
     @State private var fabScale: CGFloat = 1.0
     @State private var selectedLecture: Lecture? = nil
@@ -21,6 +22,18 @@ struct HomeView: View {
         }
         .onAppear {
             viewModel.setModelContext(modelContext)
+        }
+        .onChange(of: appState.shouldOpenRecording) { _, shouldOpen in
+            if shouldOpen {
+                showingRecording = true
+                appState.shouldOpenRecording = false
+            }
+        }
+        .onChange(of: appState.searchQuery) { _, query in
+            if let query {
+                viewModel.searchText = query
+                appState.searchQuery = nil
+            }
         }
     }
     
